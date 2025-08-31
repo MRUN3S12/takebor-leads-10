@@ -25,7 +25,7 @@ const Hero = () => {
       <div className="relative z-10 container mx-auto px-4 text-center text-white">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
-            Soluções sob medida em{" "}
+            Solução sob medida em{" "}
             <span className="text-industrial-red">peças técnicas</span>{" "}
             para construção e autopeças
           </h1>
