@@ -38,10 +38,18 @@ export function falar(texto: string) {
   window.speechSynthesis.speak(u);
 }
 
+// Um único AudioContext: o iOS só libera áudio num contexto criado/retomado
+// durante um toque do usuário (o botão "Ativar alertas"), então reaproveitamos.
+let audioCtx: AudioContext | null = null;
+
 export function bip() {
   try {
-    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new Ctx();
+    if (!audioCtx) {
+      const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      audioCtx = new Ctx();
+    }
+    const ctx = audioCtx;
+    if (ctx.state === "suspended") void ctx.resume();
     [0, 0.25, 0.5].forEach((t) => {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
