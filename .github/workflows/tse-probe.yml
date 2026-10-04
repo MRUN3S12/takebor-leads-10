@@ -42,6 +42,9 @@ jobs:
           print(f"MATEMATICA: F precisa de >{(projV/2):.0f} votos; tem {Fv}. Se TODOS os {ENA} eleitores restantes votassem F: {100*(Fv+ENA)/(VV+ENA):.2f}%. Se nenhum: {100*Fv/(VV+ENA):.2f}%")
           need = (VV+ENA*0.8*0.95)/2 - Fv
           print(f"F precisa de ~{100*need/(ENA*0.8*0.95):.1f}% dos votos validos restantes estimados para passar de 50%")
+          lock = VV - 2*Fv
+          print(f"TRAVA 2T: VV-2F = {lock}; eleitores restantes {ENA} -> {'2o TURNO MATEMATICAMENTE GARANTIDO' if ENA <= lock else 'ainda nao travado'}")
+          print(f"1o LUGAR: F-L = {Fv-Lv}; restantes {ENA} -> {'travado' if Fv-Lv > ENA else 'nao travado'}")
           for esnt,uf,pst,sF,rest in sorted(lines, reverse=True)[:8]:
               print(f"  {uf.upper()} secoes {pst}% faltam {esnt} eleitores, F {100*sF:.1f}%, ~{rest:.0f} validos restantes")
           PY
