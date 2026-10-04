@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { bip, falar, useApuracao, type Opcoes } from "@/hooks/use-apuracao";
 import { formatPct, type Fato } from "@/lib/apuracao";
 import { PainelChances } from "@/components/PainelChances";
+import { PainelRegioes } from "@/components/PainelRegioes";
 import { CARGOS, parseTseAppUrl, type TseConfig } from "@/lib/tse";
 
 const URL_PADRAO = "https://resultados.tse.jus.br/oficial/app/index.html#/eleicao/6257/uf/br/cargo/1/vis/nominal/resultados";
@@ -59,7 +60,7 @@ const Apuracao = () => {
   }, []);
 
   const cfgMemo = useMemo(() => cfg, [cfg]);
-  const { atual, historico, analise, chances, eventos, erro, carregando, ultimaConsulta, fonte, segundoTurno, consultar, reiniciarAlertas } =
+  const { atual, historico, analise, chances, ufs, eventos, erro, carregando, ultimaConsulta, fonte, segundoTurno, consultar, reiniciarAlertas } =
     useApuracao(cfgMemo, opcoes);
 
   const set = <K extends keyof Opcoes>(k: K, v: Opcoes[K]) => setOpcoes((o) => ({ ...o, [k]: v }));
@@ -182,6 +183,9 @@ const Apuracao = () => {
             <Loader2 className="h-4 w-4 animate-spin" /> Buscando resultado…
           </div>
         )}
+
+        {/* Por região */}
+        {atual && <PainelRegioes ufs={ufs} />}
 
         {/* Chances */}
         {atual && analise && chances && <PainelChances chances={chances} analise={analise} segundoTurno={segundoTurno} />}

@@ -86,6 +86,7 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
   const [eventos, setEventos] = useState<EventoLog[]>([]);
   const [fonte, setFonte] = useState<string>("");
   const [chances, setChances] = useState<Chances | null>(null);
+  const [ufs, setUfs] = useState<Snapshot[]>([]);
 
   const opcoesRef = useRef(opcoes);
   opcoesRef.current = opcoes;
@@ -105,6 +106,7 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
     setEventos([]);
     setErro(null);
     setChances(null);
+    setUfs([]);
     ufsRef.current = { em: 0, snaps: [] };
     disparadosRef.current = lerDisparados(storageKey(cfg, opcoes.simulacao));
     simRef.current = opcoes.simulacao ? criarSimulador(cfg.eleicao) : null;
@@ -150,34 +152,39 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
       setUltimaConsulta(Date.now());
       setErro(null);
 
-      const hist = historicoRef.current;
-      const ultimo = hist[hist.length - 1];
-      const novo = !ultimo || ultimo.totalizadoEm !== snap.totalizadoEm || ultimo.pctSecoes !== snap.pctSecoes;
-      if (!novo) return;
-
-      const proxHist = [...hist, snap];
-      historicoRef.current = proxHist;
-      setHistorico(proxHist);
-
       const o = opcoesRef.current;
-      if (o.narrarAtualizacoes && o.voz && ultimo) falar(resumoFalado(snap));
 
-      const analise = analisar(snap, ultimo ?? null, segundoTurno);
-      const fatos = [...analise.fatos];
-
-      // Modelo de chances: no resultado nacional, lê também cada UF (no
-      // máximo a cada 30 s) para saber de onde vêm os votos que faltam.
+      // Arquivos por UF (no máximo a cada 30 s): alimentam o modelo de chances
+      // e o quadro por região. São relidos mesmo quando o total nacional não
+      // mudou, porque o arquivo nacional do TSE às vezes atrasa em relação às UFs.
+      let ufsMudaram = false;
       if (!o.simulacao && cfg.uf.toLowerCase() === "br" && Date.now() - ufsRef.current.em > 30_000) {
         const lidas = await Promise.allSettled(
           UFS.map(async (uf) =>
             parseResultado(await fetchResultado(resultadoUrls({ ...cfg, uf }, ciclo), fetchTse), cfg.cargo),
           ),
         );
-        ufsRef.current = {
-          em: Date.now(),
-          snaps: lidas.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])),
-        };
+        const snaps = lidas.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+        const assinatura = (l: Snapshot[]) => l.map((u) => `${u.abrangencia}:${u.totalizadoEm}:${u.secoesTotalizadas}`).join("|");
+        ufsMudaram = assinatura(snaps) !== assinatura(ufsRef.current.snaps);
+        ufsRef.current = { em: Date.now(), snaps };
+        if (ufsMudaram) setUfs(snaps);
       }
+
+      const hist = historicoRef.current;
+      const ultimo = hist[hist.length - 1];
+      const novo = !ultimo || ultimo.totalizadoEm !== snap.totalizadoEm || ultimo.pctSecoes !== snap.pctSecoes;
+      if (!novo && !ufsMudaram) return;
+
+      const fatos: Fato[] = [];
+      if (novo) {
+        const proxHist = [...hist, snap];
+        historicoRef.current = proxHist;
+        setHistorico(proxHist);
+        if (o.narrarAtualizacoes && o.voz && ultimo) falar(resumoFalado(snap));
+        fatos.push(...analisar(snap, ultimo ?? null, segundoTurno).fatos);
+      }
+
       const ch = calcularChances(snap, o.simulacao ? [] : ufsRef.current.snaps, segundoTurno);
       setChances(ch);
       if (ch && snap.pctSecoes > 0) {
@@ -252,5 +259,5 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
     setEventos([]);
   }, [cfg]);
 
-  return { atual, historico, analise, chances, eventos, erro, carregando, ultimaConsulta, fonte, segundoTurno, consultar, reiniciarAlertas };
+  return { atual, historico, analise, chances, ufs, eventos, erro, carregando, ultimaConsulta, fonte, segundoTurno, consultar, reiniciarAlertas };
 }
