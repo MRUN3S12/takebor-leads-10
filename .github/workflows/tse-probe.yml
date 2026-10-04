@@ -10,29 +10,44 @@ jobs:
       - shell: bash
         run: |
           B=https://resultados.tse.jus.br/oficial/ele2026/6259/dados
-          mkdir -p d
-          for uf in ac al ap am ba ce df es go ma mt ms mg pa pb pr pe pi rj rn rs ro rr sc sp se to; do
-            for c in 0003 0005 0006 0007 0008; do
-              curl -s --retry 3 --retry-all-errors -A "Mozilla/5.0" -o d/$uf-$c.json -w "" $B/$uf/$uf-c$c-e006259-u.json &
-            done
-            wait
-          done
+          curl -s --retry 5 --retry-all-errors -A "Mozilla/5.0" -o sp7.json $B/sp/sp-c0007-e006259-u.json
+          curl -s --retry 5 --retry-all-errors -A "Mozilla/5.0" -o pa6.json $B/pa/pa-c0006-e006259-u.json
           python3 - <<'PY'
-          import json, glob, unicodedata
-          norm=lambda s: unicodedata.normalize('NFKD', s).encode('ascii','ignore').decode().upper()
-          cargos={'0003':'Governador','0005':'Senador','0006':'Dep. Federal','0007':'Dep. Estadual','0008':'Dep. Distrital'}
-          ok=0
-          for f in sorted(glob.glob('d/*.json')):
-              try: d=json.load(open(f))
-              except Exception: continue
-              ok+=1
-              uf,c=f[2:-5].split('-')
-              for carg in d.get('carg',[]):
-                  for a in carg.get('agr',[]):
-                      for p in a.get('par',[]):
-                          for x in p.get('cand',[]):
-                              nome=norm(x.get('nm','')+' | '+x.get('nmu',''))
-                              if 'RODRIGO' in nome and ('MORAI' in nome or 'MORAE' in nome):
-                                  print(f"{uf.upper()} {cargos[c]} | {x.get('nmu')} ({x.get('nm')}) n {x.get('n')} | {p.get('sg')} | votos {x.get('vap')} ({x.get('pvap')}%) | e={x.get('e')} st='{x.get('st')}' dvt={x.get('dvt')} | secoes {d['s']['pst']}% md={d.get('md')} {d.get('ht')}")
-          print('arquivos lidos', ok)
+          import json
+          def run(f, vagas, alvo):
+              d=json.load(open(f))
+              carg=d['carg'][0]
+              print('==', f, 'secoes', d['s']['pst'], d['ht'], 'vagas', vagas, 'keys carg', [k for k in carg if k!='agr'])
+              fedname={x['n']:x['sg'] for x in carg.get('fed',[])}
+              grupos={}; cands={}
+              for a in carg['agr']:
+                  for p in a['par']:
+                      g = fedname.get(p.get('nfed'), p['sg']) if p.get('nfed') else p['sg']
+                      grupos[g]=grupos.get(g,0)+int(p.get('tvtn') or 0)
+                      for c in p.get('cand',[]):
+                          if c.get('dvt','').lower().startswith('v'):
+                              cands.setdefault(g,[]).append((int(c['vap']), c['nmu']))
+              vv=int(d['v']['vv'])
+              qe=round(vv/vagas)
+              print('validos', vv, 'QE', qe, 'soma grupos', sum(grupos.values()))
+              qp={g: v//qe for g,v in grupos.items()}
+              # vagas por QP limitadas a candidatos com >=10% QE
+              seats={g: min(qp[g], sum(1 for v,_ in cands.get(g,[]) if v>=0.1*qe)) for g in grupos}
+              rest=vagas-sum(seats.values())
+              # sobras: partidos com >=80% QE, candidatos >=20% QE (simplificado)
+              while rest>0:
+                  elig=[g for g in grupos if grupos[g]>=0.8*qe and sum(1 for v,_ in cands.get(g,[]) if v>=0.2*qe)>seats[g]]
+                  if not elig: elig=[g for g in grupos if len(cands.get(g,[]))>seats[g]]
+                  g=max(elig, key=lambda g: grupos[g]/(seats[g]+1)); seats[g]+=1; rest-=1
+              for g in sorted(grupos, key=lambda g:-grupos[g])[:8]:
+                  print(f"  {g}: votos {grupos[g]} vagas {seats[g]}")
+              for g,l in cands.items():
+                  l.sort(reverse=True)
+                  for i,(v,n) in enumerate(l):
+                      if n==alvo:
+                          ult = l[seats[g]-1] if seats[g]>0 else None
+                          prox = l[seats[g]] if len(l)>seats[g] else None
+                          print(f"  ALVO {n} grupo {g}: posicao {i+1} com {v} votos; vagas do grupo {seats[g]}; ultimo dentro {ult}; primeiro fora {prox}")
+          run('sp7.json', 94, 'RODRIGO MORAES')
+          run('pa6.json', 17, 'RODRIGO MORAES')
           PY
