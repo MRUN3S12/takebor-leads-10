@@ -11,8 +11,7 @@ jobs:
         run: |
           B=https://resultados.tse.jus.br/oficial/ele2026/6259/dados
           curl -s --retry 5 --retry-all-errors -A "Mozilla/5.0" -o sp7.json $B/sp/sp-c0007-e006259-u.json
-          curl -s --retry 5 --retry-all-errors -A "Mozilla/5.0" -o pa6.json $B/pa/pa-c0006-e006259-u.json
-          python3 - <<'PY'
+                    python3 - <<'PY'
           import json
           def run(f, vagas, alvo):
               d=json.load(open(f))
@@ -44,10 +43,15 @@ jobs:
               for g,l in cands.items():
                   l.sort(reverse=True)
                   for i,(v,n) in enumerate(l):
-                      if n==alvo:
+                      if alvo(n):
                           ult = l[seats[g]-1] if seats[g]>0 else None
                           prox = l[seats[g]] if len(l)>seats[g] else None
                           print(f"  ALVO {n} grupo {g}: posicao {i+1} com {v} votos; vagas do grupo {seats[g]}; ultimo dentro {ult}; primeiro fora {prox}")
-          run('sp7.json', 94, 'RODRIGO MORAES')
-          run('pa6.json', 17, 'RODRIGO MORAES')
+          d=json.load(open('sp7.json'))
+          for a in d['carg'][0]['agr']:
+              for p in a['par']:
+                  for c in p.get('cand',[]):
+                      if 'RITA' in c['nm'].upper() and 'PASSOS' in c['nm'].upper():
+                          print('CAND', c['nmu'], '|', c['nm'], '| n', c['n'], '|', p['sg'], '| votos', c['vap'], c['pvap'], '| e', c['e'], 'st', repr(c['st']), c['dvt'])
+          run('sp7.json', 94, lambda n: 'RITA' in n.upper() and 'PASSOS' in n.upper())
           PY
