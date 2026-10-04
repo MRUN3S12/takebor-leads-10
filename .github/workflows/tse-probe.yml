@@ -48,3 +48,4 @@ jobs:
           for esnt,uf,pst,sF,rest in sorted(lines, reverse=True)[:8]:
               print(f"  {uf.upper()} secoes {pst}% faltam {esnt} eleitores, F {100*sF:.1f}%, ~{rest:.0f} validos restantes")
           PY
+# rerun 1791157957
