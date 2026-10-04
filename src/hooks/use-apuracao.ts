@@ -5,9 +5,9 @@ import { criarSimulador } from "@/lib/simulador";
 import {
   cargoTemSegundoTurno,
   descobrirCiclo,
-  fetchTse,
+  fetchResultado,
   parseResultado,
-  resultadoUrl,
+  resultadoUrls,
   ultimoProxyUsado,
   type Snapshot,
   type TseConfig,
@@ -136,10 +136,10 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
         setFonte("simulação");
       } else {
         const ciclo = cfg.ciclo || (await descobrirCiclo(cfg.eleicao)) || "ele2026";
-        raw = await fetchTse(resultadoUrl(cfg, ciclo));
+        raw = await fetchResultado(resultadoUrls(cfg, ciclo));
         setFonte(`${ultimoProxyUsado} · ${ciclo}`);
       }
-      const snap = parseResultado(raw);
+      const snap = parseResultado(raw, cfg.cargo);
       setUltimaConsulta(Date.now());
       setErro(null);
 
