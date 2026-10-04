@@ -71,3 +71,21 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Apuração ao vivo (TSE)
+
+A rota `/apuracao` acompanha ao vivo os resultados do TSE
+(`resultados.tse.jus.br`) e avisa — em voz, som, notificação do navegador e
+toast — quando um resultado fica irreversível:
+
+- **Matematicamente irreversível**: se mantém mesmo que 100% do eleitorado
+  ainda não apurado compareça e vote contra.
+- **Praticamente irreversível**: usa o comparecimento atual + 5 p.p. e a taxa
+  atual de votos válidos.
+- Sinais oficiais do TSE (`md` = matematicamente definido, candidato eleito,
+  100% das seções).
+
+Para cargos com 2º turno, detecta: vitória no 1º turno, 2º turno garantido,
+cada finalista garantido e o confronto definido. Cole o link do app do TSE na
+configuração (eleição/UF/cargo são lidos dele). Clique em "Ativar alertas"
+para o navegador liberar áudio e notificações. Há um modo simulação para teste.
