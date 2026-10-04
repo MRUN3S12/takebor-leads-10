@@ -10,27 +10,10 @@ jobs:
     steps:
       - run: |
           B=https://resultados.tse.jus.br/oficial
-          UA="Mozilla/5.0"
-          curl -sS -A "$UA" $B/comum/config/ele-c.json -o ele.json
-          echo "== ele-c 2026 part"; python3 - <<'PY'
+          curl -sSI -A "Mozilla/5.0" -H "Origin: https://mrun3s12.github.io" $B/ele2026/6257/dados/br/br-c0001-e006257-u.json | grep -i -E "access-control|cache|content-type"
+          curl -sS -A "Mozilla/5.0" $B/ele2026/6257/dados/br/br-c0001-e006257-u.json -o u.json
+          python3 - <<'PY'
           import json
-          d=json.load(open('ele.json'))
-          for pl in d['pl']:
-              if pl['c']=='ele2026':
-                  for e in pl['e']:
-                      print(pl['cd'], pl['dt'], e['cd'], e.get('cdt2'), e['nm'], [ (a['cd'], [c['cd'] for c in a.get('cp',[])]) for a in e['abr']][:3])
+          d=json.load(open('u.json'))
+          print(json.dumps(d, ensure_ascii=False, separators=(',',':'))[:20000])
           PY
-          curl -sS -A "$UA" $B/app/main.81f75da20de3cfaa.js -o app.js
-          echo "== json refs"; grep -oE '.{80}\.json.{40}' app.js | head -40
-          echo "== simplif"; grep -oE '.{100}simplificad.{100}' app.js | head -10
-          echo "== tipos"; grep -oE '.{100}"(r|v|u|e|ab)"\s*[,:].{60}' app.js | head -10
-          for p in \
-            ele2026/6257/dados/br/br-c0001-e006257-u.json \
-            ele2026/6257/dados/br/br-c0001-e006257-e.json \
-            ele2026/6257/dados/br/br-c0001-e006257-ab.json \
-            ele2026/6257/dados-simplificados/br/br-c0001-e006257-u.json \
-            ele2026/6257/dados/br/br-e006257-ab.json \
-            ele2026/6257/dados/br/br-e006257-u.json \
-            ele2026/6257/config/br/br-c0001-e006257-cs.json ; do
-            echo "== $p $(curl -s -A "$UA" -o out.json -w '%{http_code}' $B/$p)"; head -c 800 out.json; echo
-          done
