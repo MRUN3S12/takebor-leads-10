@@ -49,3 +49,4 @@ jobs:
               print(f"  {uf.upper()} secoes {pst}% faltam {esnt} eleitores, F {100*sF:.1f}%, ~{rest:.0f} validos restantes")
           PY
 # rerun 1791157957
+# rerun 1791158315
