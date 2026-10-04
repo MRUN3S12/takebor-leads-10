@@ -1,0 +1,28 @@
+name: TSE probe
+on:
+  push:
+    branches: [claude/tse-results-live-analyzer-2k3ml2]
+    paths: [.github/workflows/tse-probe.yml]
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          B=https://resultados.tse.jus.br/oficial
+          UA="Mozilla/5.0"
+          echo "== ele-c.json"; curl -sS -A "$UA" $B/comum/config/ele-c.json | head -c 6000; echo
+          echo "== app index"; curl -sS -A "$UA" $B/app/index.html -o idx.html; grep -o 'src="[^"]*\.js"' idx.html
+          for js in $(grep -o 'src="[^"]*\.js"' idx.html | sed 's/src="//;s/"//'); do
+            curl -sS -A "$UA" "$B/app/$js" -o app.js
+            echo "== $js"; grep -oE '.{120}(-r\.json|dados-simplificados|/dados/).{120}' app.js | head -20
+          done
+          for p in \
+            ele2026/6257/dados-simplificados/br/br-c0001-e006257-r.json \
+            ele2026/6257/dados/br/br-c0001-e006257-r.json \
+            ele2026/6257/dados-simplificados/br/br-c0001-e006257-v.json \
+            ele2026/6257/dados/br/br-c0001-e006257-v.json \
+            ele2026/6257/config/br/br-c0001-e006257-a.json \
+            ele2026/6257/config/mun-e006257-cm.json ; do
+            echo "== $p $(curl -s -A "$UA" -o out.json -w '%{http_code}' $B/$p)"; head -c 1500 out.json; echo
+          done
