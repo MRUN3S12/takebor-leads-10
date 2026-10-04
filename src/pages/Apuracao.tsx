@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { bip, falar, useApuracao, type Opcoes } from "@/hooks/use-apuracao";
 import { formatPct, type Fato } from "@/lib/apuracao";
+import { PainelChances } from "@/components/PainelChances";
 import { CARGOS, parseTseAppUrl, type TseConfig } from "@/lib/tse";
 
 const URL_PADRAO = "https://resultados.tse.jus.br/oficial/app/index.html#/eleicao/6257/uf/br/cargo/1/vis/nominal/resultados";
@@ -18,7 +19,7 @@ const CORES = ["#dc2626", "#2563eb", "#16a34a", "#ca8a04", "#9333ea", "#0891b2",
 
 const int = (n: number) => Math.round(n).toLocaleString("pt-BR");
 
-const PRIORIDADE: Record<Fato["nivel"], number> = { tse: 3, matematico: 2, realista: 1 };
+const PRIORIDADE: Record<Fato["nivel"], number> = { tse: 3, matematico: 2, realista: 1, modelo: 0 };
 // Dentro do mesmo nível, o fato mais conclusivo vem primeiro.
 const peso = (f: Fato) => PRIORIDADE[f.nivel] + (/^(vence|confronto|tse-eleito)/.test(f.chave) ? 0.5 : 0);
 const pctLimite = (v: number) => (v > 100 ? "mais de 100%" : formatPct(v));
@@ -58,7 +59,7 @@ const Apuracao = () => {
   }, []);
 
   const cfgMemo = useMemo(() => cfg, [cfg]);
-  const { atual, historico, analise, eventos, erro, carregando, ultimaConsulta, fonte, segundoTurno, consultar, reiniciarAlertas } =
+  const { atual, historico, analise, chances, eventos, erro, carregando, ultimaConsulta, fonte, segundoTurno, consultar, reiniciarAlertas } =
     useApuracao(cfgMemo, opcoes);
 
   const set = <K extends keyof Opcoes>(k: K, v: Opcoes[K]) => setOpcoes((o) => ({ ...o, [k]: v }));
@@ -181,6 +182,9 @@ const Apuracao = () => {
             <Loader2 className="h-4 w-4 animate-spin" /> Buscando resultado…
           </div>
         )}
+
+        {/* Chances */}
+        {atual && analise && chances && <PainelChances chances={chances} analise={analise} segundoTurno={segundoTurno} />}
 
         {/* Candidatos */}
         {atual && analise && (
@@ -334,7 +338,7 @@ const Apuracao = () => {
                     <span className="text-muted-foreground tabular-nums shrink-0">{new Date(e.em).toLocaleTimeString("pt-BR")}</span>
                     <span>
                       <Badge variant="outline" className="mr-2">
-                        {e.fato.nivel === "tse" ? "TSE" : e.fato.nivel === "matematico" ? "matemático" : "estimado"}
+                        {e.fato.nivel === "tse" ? "TSE" : e.fato.nivel === "matematico" ? "matemático" : e.fato.nivel === "modelo" ? "modelo" : "estimado"}
                       </Badge>
                       <strong>{e.fato.titulo}</strong> — {e.fato.detalhe}
                     </span>
@@ -379,7 +383,7 @@ const Apuracao = () => {
               <Toggle rotulo="Notificação do navegador" valor={opcoes.notificacao} onChange={(v) => set("notificacao", v)} />
               <Toggle rotulo="Narrar cada atualização do TSE" valor={opcoes.narrarAtualizacoes} onChange={(v) => set("narrarAtualizacoes", v)} />
               <Toggle
-                rotulo="Avisar também o 'praticamente irreversível'"
+                rotulo="Avisar também estimativas (praticamente irreversível e chance ≥ 99%)"
                 valor={opcoes.alertasRealistas}
                 onChange={(v) => set("alertasRealistas", v)}
               />

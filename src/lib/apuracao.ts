@@ -13,7 +13,7 @@ export type Nivel = "matematico" | "realista";
 export interface Fato {
   /** Chave estável usada para disparar o alerta uma única vez */
   chave: string;
-  nivel: Nivel | "tse";
+  nivel: Nivel | "tse" | "modelo";
   titulo: string;
   detalhe: string;
 }
