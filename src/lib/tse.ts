@@ -32,6 +32,8 @@ export interface Snapshot {
   fetchedAt: number;
   /** Data/hora da totalização informada pelo TSE (dt + ht) */
   totalizadoEm: string;
+  /** Código da abrangência ("br", "sp"...) */
+  abrangencia: string;
   pctSecoes: number;
   secoesTotalizadas: number;
   secoesTotal: number;
@@ -150,6 +152,7 @@ export function parseResultado(raw: any, cargo?: string): Snapshot {
   return {
     fetchedAt: Date.now(),
     totalizadoEm: [raw.dt, raw.ht].filter(Boolean).join(" "),
+    abrangencia: String(raw.cdabr ?? "").toLowerCase(),
     pctSecoes: num(s.pstn ?? s.pst),
     secoesTotalizadas: num(s.st),
     secoesTotal: num(s.ts ?? raw.s),
