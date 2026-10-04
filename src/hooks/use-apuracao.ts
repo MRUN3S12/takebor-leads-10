@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { analisar, resumoFalado, type Fato } from "@/lib/apuracao";
+import { calcularChances, UFS, type Chances } from "@/lib/modelo";
 import { criarSimulador } from "@/lib/simulador";
 import {
   cargoTemSegundoTurno,
   descobrirCiclo,
   fetchResultado,
+  fetchTse,
   parseResultado,
   resultadoUrls,
   ultimoProxyUsado,
@@ -20,7 +22,7 @@ export interface Opcoes {
   som: boolean;
   notificacao: boolean;
   narrarAtualizacoes: boolean;
-  /** Avisar também os fatos "praticamente irreversíveis" (cenário realista) */
+  /** Avisar também estimativas: "praticamente irreversível" e chance do modelo ≥ 99% */
   alertasRealistas: boolean;
 }
 
@@ -83,6 +85,7 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
   const [ultimaConsulta, setUltimaConsulta] = useState<number | null>(null);
   const [eventos, setEventos] = useState<EventoLog[]>([]);
   const [fonte, setFonte] = useState<string>("");
+  const [chances, setChances] = useState<Chances | null>(null);
 
   const opcoesRef = useRef(opcoes);
   opcoesRef.current = opcoes;
@@ -90,6 +93,7 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
   const historicoRef = useRef<Snapshot[]>([]);
   const simRef = useRef<(() => Promise<unknown>) | null>(null);
   const emAndamento = useRef(false);
+  const ufsRef = useRef<{ em: number; snaps: Snapshot[] }>({ em: 0, snaps: [] });
 
   const segundoTurno = cargoTemSegundoTurno(cfg.cargo);
   const chaveCfg = `${cfg.eleicao}|${cfg.uf}|${cfg.cargo}|${cfg.ciclo}|${opcoes.simulacao}`;
@@ -100,6 +104,8 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
     setHistorico([]);
     setEventos([]);
     setErro(null);
+    setChances(null);
+    ufsRef.current = { em: 0, snaps: [] };
     disparadosRef.current = lerDisparados(storageKey(cfg, opcoes.simulacao));
     simRef.current = opcoes.simulacao ? criarSimulador(cfg.eleicao) : null;
     if (opcoes.simulacao) disparadosRef.current = new Set();
@@ -110,7 +116,7 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
     (fato: Fato) => {
       const o = opcoesRef.current;
       setEventos((ev) => [{ em: Date.now(), fato }, ...ev]);
-      const forte = fato.nivel !== "realista";
+      const forte = fato.nivel === "tse" || fato.nivel === "matematico";
       toast(fato.titulo, { description: fato.detalhe, duration: forte ? 20000 : 8000 });
       if (o.som) bip();
       if (o.voz) falar(fato.titulo);
@@ -131,11 +137,12 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
     setCarregando(true);
     try {
       let raw: unknown;
+      let ciclo = "";
       if (simRef.current) {
         raw = await simRef.current();
         setFonte("simulação");
       } else {
-        const ciclo = cfg.ciclo || (await descobrirCiclo(cfg.eleicao)) || "ele2026";
+        ciclo = cfg.ciclo || (await descobrirCiclo(cfg.eleicao)) || "ele2026";
         raw = await fetchResultado(resultadoUrls(cfg, ciclo));
         setFonte(`${ultimoProxyUsado} · ${ciclo}`);
       }
@@ -156,9 +163,52 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
       if (o.narrarAtualizacoes && o.voz && ultimo) falar(resumoFalado(snap));
 
       const analise = analisar(snap, ultimo ?? null, segundoTurno);
+      const fatos = [...analise.fatos];
+
+      // Modelo de chances: no resultado nacional, lê também cada UF (no
+      // máximo a cada 30 s) para saber de onde vêm os votos que faltam.
+      if (!o.simulacao && cfg.uf.toLowerCase() === "br" && Date.now() - ufsRef.current.em > 30_000) {
+        const lidas = await Promise.allSettled(
+          UFS.map(async (uf) =>
+            parseResultado(await fetchResultado(resultadoUrls({ ...cfg, uf }, ciclo), fetchTse), cfg.cargo),
+          ),
+        );
+        ufsRef.current = {
+          em: Date.now(),
+          snaps: lidas.flatMap((r) => (r.status === "fulfilled" ? [r.value] : [])),
+        };
+      }
+      const ch = calcularChances(snap, o.simulacao ? [] : ufsRef.current.snaps, segundoTurno);
+      setChances(ch);
+      if (ch && snap.pctSecoes > 0) {
+        const pc = (x: number) => `${(x * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+        const base = `Modelo com ${ch.simulacoes.toLocaleString("pt-BR")} simulações a partir de ${ch.ufsLidas || "nenhuma"} UF(s).`;
+        if (segundoTurno && ch.segundoTurno >= 0.99) {
+          fatos.push({ chave: "modelo-2t", nivel: "modelo", titulo: `Chance de 2º turno: ${pc(ch.segundoTurno)}`, detalhe: base });
+        }
+        for (const c of ch.candidatos) {
+          if (c.vence1t >= 0.99) {
+            fatos.push({
+              chave: `modelo-vence-${c.numero}`,
+              nivel: "modelo",
+              titulo: `${c.nome}: ${pc(c.vence1t)} de chance de vencer${segundoTurno ? " no 1º turno" : ""}`,
+              detalhe: base,
+            });
+          }
+          if (segundoTurno && c.vai2t >= 0.99) {
+            fatos.push({
+              chave: `modelo-top2-${c.numero}`,
+              nivel: "modelo",
+              titulo: `${c.nome}: ${pc(c.vai2t)} de chance de ir ao 2º turno`,
+              detalhe: base,
+            });
+          }
+        }
+      }
+
       const key = storageKey(cfg, o.simulacao);
-      for (const fato of analise.fatos) {
-        if (fato.nivel === "realista" && !o.alertasRealistas) continue;
+      for (const fato of fatos) {
+        if ((fato.nivel === "realista" || fato.nivel === "modelo") && !o.alertasRealistas) continue;
         if (disparadosRef.current.has(fato.chave)) continue;
         disparadosRef.current.add(fato.chave);
         alertar(fato);
@@ -202,5 +252,5 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
     setEventos([]);
   }, [cfg]);
 
-  return { atual, historico, analise, eventos, erro, carregando, ultimaConsulta, fonte, segundoTurno, consultar, reiniciarAlertas };
+  return { atual, historico, analise, chances, eventos, erro, carregando, ultimaConsulta, fonte, segundoTurno, consultar, reiniciarAlertas };
 }
