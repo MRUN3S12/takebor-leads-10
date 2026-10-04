@@ -1,0 +1,38 @@
+name: TSE probe
+on:
+  push:
+    branches: [claude/tse-results-live-analyzer-2k3ml2]
+    paths: [.github/workflows/tse-probe.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        run: |
+          B=https://resultados.tse.jus.br/oficial/ele2026/6259/dados
+          mkdir -p d
+          for uf in ac al ap am ba ce df es go ma mt ms mg pa pb pr pe pi rj rn rs ro rr sc sp se to; do
+            for c in 0003 0005 0006 0007 0008; do
+              curl -s --retry 3 --retry-all-errors -A "Mozilla/5.0" -o d/$uf-$c.json -w "" $B/$uf/$uf-c$c-e006259-u.json &
+            done
+            wait
+          done
+          python3 - <<'PY'
+          import json, glob, unicodedata
+          norm=lambda s: unicodedata.normalize('NFKD', s).encode('ascii','ignore').decode().upper()
+          cargos={'0003':'Governador','0005':'Senador','0006':'Dep. Federal','0007':'Dep. Estadual','0008':'Dep. Distrital'}
+          ok=0
+          for f in sorted(glob.glob('d/*.json')):
+              try: d=json.load(open(f))
+              except Exception: continue
+              ok+=1
+              uf,c=f[2:-5].split('-')
+              for carg in d.get('carg',[]):
+                  for a in carg.get('agr',[]):
+                      for p in a.get('par',[]):
+                          for x in p.get('cand',[]):
+                              nome=norm(x.get('nm','')+' | '+x.get('nmu',''))
+                              if 'RODRIGO' in nome and ('MORAI' in nome or 'MORAE' in nome):
+                                  print(f"{uf.upper()} {cargos[c]} | {x.get('nmu')} ({x.get('nm')}) n {x.get('n')} | {p.get('sg')} | votos {x.get('vap')} ({x.get('pvap')}%) | e={x.get('e')} st='{x.get('st')}' dvt={x.get('dvt')} | secoes {d['s']['pst']}% md={d.get('md')} {d.get('ht')}")
+          print('arquivos lidos', ok)
+          PY
