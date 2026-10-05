@@ -12,16 +12,33 @@ jobs:
           curl -s --retry 5 --retry-all-errors -A "Mozilla/5.0" -o sp7.json https://resultados.tse.jus.br/oficial/ele2026/6259/dados/sp/sp-c0007-e006259-u.json
           python3 - <<'PY'
           import json
-          d=json.load(open('sp7.json'))
-          print('SP dep estadual', d['dt'], d['ht'], 'secoes', d['s']['pst'], 'md', d.get('md'), 'tf', d.get('tf'))
-          psd=[]
-          for a in d['carg'][0]['agr']:
+          d=json.load(open('sp7.json')); vagas=94
+          carg=d['carg'][0]
+          print('secoes', d['s']['pst'], d['ht'], 'qe TSE', carg.get('qe'))
+          fedname={x['n']:x['sg'] for x in carg.get('fed',[])}
+          grupos={}; cands={}
+          for a in carg['agr']:
               for p in a['par']:
+                  g = fedname.get(p.get('nfed'), p['sg']) if p.get('nfed') else p['sg']
+                  grupos[g]=grupos.get(g,0)+int(p.get('tvtn') or 0)
                   for c in p.get('cand',[]):
-                      if 'RITA' in c['nm'].upper() and 'PASSOS' in c['nm'].upper():
-                          print('CAND', c['nmu'], '|', c['nm'], '|', p['sg'], '| votos', c['vap'], c['pvap'], '| e', c['e'], '| st', repr(c['st']), '|', c['dvt'])
-                      if p['sg']=='PSD': psd.append((int(c['vap']), c['nmu'], c['e'], c['st']))
-          psd.sort(reverse=True)
-          print('PSD eleitos', sum(1 for x in psd if x[2]=='s'))
-          for i,x in enumerate(psd[:14]): print(' ', i+1, x)
+                      if c.get('dvt','').lower().startswith('v'):
+                          cands.setdefault(g,[]).append((int(c['vap']), c['nmu']))
+          vv=int(d['v']['vv']); qe=round(vv/vagas)
+          print('validos', vv, 'QE calc', qe)
+          elegiveis=lambda g,f: sum(1 for v,_ in cands.get(g,[]) if v>=f*qe)
+          seats={g: min(grupos[g]//qe, elegiveis(g,0.1)) for g in grupos}
+          rest=vagas-sum(seats.values()); log=[]
+          while rest>0:
+              elig=[g for g in grupos if grupos[g]>=0.8*qe and elegiveis(g,0.2)>seats[g]]
+              if not elig: elig=[g for g in grupos if len(cands.get(g,[]))>seats[g]]
+              ranked=sorted(elig, key=lambda g: -grupos[g]/(seats[g]+1))
+              g=ranked[0]; log.append((g, round(grupos[g]/(seats[g]+1)), ranked[1], round(grupos[ranked[1]]/(seats[ranked[1]]+1))))
+              seats[g]+=1; rest-=1
+          for g in sorted(grupos, key=lambda g:-grupos[g])[:10]: print(f"  {g}: votos {grupos[g]} QP {grupos[g]//qe} vagas {seats[g]}")
+          print('sobras:', log)
+          psd=sorted(cands['PSD'], reverse=True)
+          print('PSD vagas', seats['PSD'], 'ultimo dentro', psd[seats['PSD']-1], 'primeiro fora', psd[seats['PSD']])
+          # proxima media do PSD vs ultima sobra concedida
+          print('PSD proxima media', round(grupos['PSD']/(seats['PSD']+1)), 'ultima sobra concedida', log[-1] if log else None)
           PY
