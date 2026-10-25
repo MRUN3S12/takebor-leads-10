@@ -11,6 +11,8 @@ import type { Snapshot } from "./tse";
 //   - a divisão dos votos restantes em cada estrato (±10% relativo por
 //     candidato — o que falta apurar costuma ser diferente do que já entrou);
 //   - um desvio nacional comum a todos os estratos (±5% relativo por candidato).
+// As variações de divisão são ampliadas no começo da apuração (até 3× com 0%
+// apurado), porque as primeiras urnas costumam vir de poucas regiões.
 // A chance é a fração das simulações em que o evento acontece.
 
 export const UFS = [
@@ -150,6 +152,9 @@ export function calcularChances(
     return t > 0 ? e.votos.map((v) => v / t) : shareNac;
   });
 
+  const restanteNac = nacional.eleitorado > 0 ? nacional.eleitoradoNaoApurado / nacional.eleitorado : 1;
+  const fator = 1 + 2 * Math.min(1, Math.max(0, restanteNac));
+
   const r = rng(hash(`${nacional.totalizadoEm}|${nacional.validos}|${ufs.length}`));
   const vence1t = new Array(k).fill(0);
   const vai2t = new Array(k).fill(0);
@@ -163,7 +168,7 @@ export function calcularChances(
 
   for (let s = 0; s < simulacoes; s++) {
     for (let i = 0; i < k; i++) {
-      z[i] = gauss(r) * SIGMA_NACIONAL;
+      z[i] = gauss(r) * SIGMA_NACIONAL * fator;
       finalVotos[i] = 0;
     }
     for (let j = 0; j < estratos.length; j++) {
@@ -174,7 +179,7 @@ export function calcularChances(
       const restante = e.restanteEleitores * comp * e.validosTaxa;
       let soma = 0;
       for (let i = 0; i < k; i++) {
-        pert[i] = shares[j][i] * Math.exp(gauss(r) * e.sigma + z[i]);
+        pert[i] = shares[j][i] * Math.exp(gauss(r) * e.sigma * fator + z[i]);
         soma += pert[i];
       }
       if (soma <= 0) continue;

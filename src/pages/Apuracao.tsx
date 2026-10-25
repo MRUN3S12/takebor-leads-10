@@ -15,7 +15,7 @@ import { PainelChances } from "@/components/PainelChances";
 import { PainelRegioes } from "@/components/PainelRegioes";
 import { CARGOS, parseTseAppUrl, type TseConfig } from "@/lib/tse";
 
-const URL_PADRAO = "https://resultados.tse.jus.br/oficial/app/index.html#/eleicao/6257/uf/br/cargo/1/vis/nominal/resultados";
+const URL_PADRAO = "https://resultados.tse.jus.br/oficial/app/index.html#/eleicao/6258/uf/br/cargo/1/vis/nominal/resultados";
 const CORES = ["#dc2626", "#2563eb", "#16a34a", "#ca8a04", "#9333ea", "#0891b2", "#ea580c", "#64748b"];
 
 const int = (n: number) => Math.round(n).toLocaleString("pt-BR");
@@ -42,7 +42,7 @@ function corStatus(status?: string) {
 
 const Apuracao = () => {
   const [urlTse, setUrlTse] = useState(URL_PADRAO);
-  const [cfg, setCfg] = useState<TseConfig>({ eleicao: "6257", uf: "br", cargo: "1", ciclo: "" });
+  const [cfg, setCfg] = useState<TseConfig>({ eleicao: "6258", uf: "br", cargo: "1", ciclo: "" });
   const [rascunho, setRascunho] = useState(cfg);
   const [opcoes, setOpcoes] = useState<Opcoes>({
     intervaloSeg: 15,

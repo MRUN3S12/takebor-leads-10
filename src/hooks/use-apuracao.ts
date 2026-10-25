@@ -67,6 +67,11 @@ export function bip() {
   }
 }
 
+// "Maioria absoluta com 2º turno" só vale no 1º turno; no 2º turno vence quem
+// tiver mais votos.
+const regraDoisTurnos = (cargo: string, snap: Snapshot | null | undefined) =>
+  cargoTemSegundoTurno(cargo) && (snap?.turno ?? 1) !== 2;
+
 const storageKey = (cfg: TseConfig, sim: boolean) =>
   `apuracao:alertas:${sim ? "sim" : "real"}:${cfg.eleicao}:${cfg.uf}:${cfg.cargo}`;
 
@@ -96,7 +101,6 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
   const emAndamento = useRef(false);
   const ufsRef = useRef<{ em: number; snaps: Snapshot[] }>({ em: 0, snaps: [] });
 
-  const segundoTurno = cargoTemSegundoTurno(cfg.cargo);
   const chaveCfg = `${cfg.eleicao}|${cfg.uf}|${cfg.cargo}|${cfg.ciclo}|${opcoes.simulacao}`;
 
   // Reinicia tudo quando a eleição/cargo/modo muda
@@ -149,6 +153,7 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
         setFonte(`${ultimoProxyUsado} · ${ciclo}`);
       }
       const snap = parseResultado(raw, cfg.cargo);
+      const doisTurnos = regraDoisTurnos(cfg.cargo, snap);
       setUltimaConsulta(Date.now());
       setErro(null);
 
@@ -182,15 +187,15 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
         historicoRef.current = proxHist;
         setHistorico(proxHist);
         if (o.narrarAtualizacoes && o.voz && ultimo) falar(resumoFalado(snap));
-        fatos.push(...analisar(snap, ultimo ?? null, segundoTurno).fatos);
+        fatos.push(...analisar(snap, ultimo ?? null, doisTurnos).fatos);
       }
 
-      const ch = calcularChances(snap, o.simulacao ? [] : ufsRef.current.snaps, segundoTurno);
+      const ch = calcularChances(snap, o.simulacao ? [] : ufsRef.current.snaps, doisTurnos);
       setChances(ch);
       if (ch && snap.pctSecoes > 0) {
         const pc = (x: number) => `${(x * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
         const base = `Modelo com ${ch.simulacoes.toLocaleString("pt-BR")} simulações a partir de ${ch.ufsLidas || "nenhuma"} UF(s).`;
-        if (segundoTurno && ch.segundoTurno >= 0.99) {
+        if (doisTurnos && ch.segundoTurno >= 0.99) {
           fatos.push({ chave: "modelo-2t", nivel: "modelo", titulo: `Chance de 2º turno: ${pc(ch.segundoTurno)}`, detalhe: base });
         }
         for (const c of ch.candidatos) {
@@ -198,11 +203,11 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
             fatos.push({
               chave: `modelo-vence-${c.numero}`,
               nivel: "modelo",
-              titulo: `${c.nome}: ${pc(c.vence1t)} de chance de vencer${segundoTurno ? " no 1º turno" : ""}`,
+              titulo: `${c.nome}: ${pc(c.vence1t)} de chance de vencer${doisTurnos ? " no 1º turno" : ""}`,
               detalhe: base,
             });
           }
-          if (segundoTurno && c.vai2t >= 0.99) {
+          if (doisTurnos && c.vai2t >= 0.99) {
             fatos.push({
               chave: `modelo-top2-${c.numero}`,
               nivel: "modelo",
@@ -233,7 +238,7 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
       emAndamento.current = false;
       setCarregando(false);
     }
-  }, [cfg, segundoTurno, alertar]);
+  }, [cfg, alertar]);
 
   useEffect(() => {
     consultar();
@@ -243,6 +248,7 @@ export function useApuracao(cfg: TseConfig, opcoes: Opcoes) {
   }, [consultar, opcoes.intervaloSeg, chaveCfg]);
 
   const atual = historico[historico.length - 1] ?? null;
+  const segundoTurno = regraDoisTurnos(cfg.cargo, atual);
   const anterior = historico[historico.length - 2] ?? null;
   const analise = useMemo(
     () => (atual ? analisar(atual, anterior, segundoTurno) : null),

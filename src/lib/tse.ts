@@ -34,6 +34,8 @@ export interface Snapshot {
   totalizadoEm: string;
   /** Código da abrangência ("br", "sp"...) */
   abrangencia: string;
+  /** Turno da eleição (1 ou 2) */
+  turno: number;
   pctSecoes: number;
   secoesTotalizadas: number;
   secoesTotal: number;
@@ -153,6 +155,7 @@ export function parseResultado(raw: any, cargo?: string): Snapshot {
     fetchedAt: Date.now(),
     totalizadoEm: [raw.dt, raw.ht].filter(Boolean).join(" "),
     abrangencia: String(raw.cdabr ?? "").toLowerCase(),
+    turno: num(raw.t) || 1,
     pctSecoes: num(s.pstn ?? s.pst),
     secoesTotalizadas: num(s.st),
     secoesTotal: num(s.ts ?? raw.s),
