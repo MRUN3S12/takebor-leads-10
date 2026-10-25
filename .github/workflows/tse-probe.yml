@@ -1,0 +1,39 @@
+name: TSE probe
+on:
+  push:
+    branches: [claude/tse-results-live-analyzer-2k3ml2]
+    paths: [.github/workflows/tse-probe.yml]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        run: |
+          B=https://resultados.tse.jus.br/oficial
+          curl -s --retry 5 --retry-all-errors -A "Mozilla/5.0" -o ele.json $B/comum/config/ele-c.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('ele.json'))
+          for pl in d['pl']:
+              if pl['c']=='ele2026':
+                  for e in pl['e']:
+                      print(pl['cd'], pl['dt'], e['cd'], e.get('cdt2'), e.get('t'), e['nm'], [(a['cd'], [c['cd'] for c in a.get('cp',[])]) for a in e['abr']][:4])
+          PY
+          for p in ele2026/6258/dados/br/br-c0001-e006258-u.json ele2026/6258/dados/sp/sp-c0001-e006258-u.json ele2026/6258/dados-simplificados/br/br-c0001-e006258-r.json; do
+            code=$(curl -s --retry 5 --retry-all-errors -A "Mozilla/5.0" -H "Origin: https://mrun3s12.github.io" -D h.txt -o out.json -w '%{http_code}' $B/$p)
+            echo "== $p $code"; grep -i access-control h.txt || true
+            python3 -c "
+          import json
+          try:
+              d=json.load(open('out.json'))
+          except Exception as e:
+              print(open('out.json').read()[:300]); raise SystemExit
+          print({k:d[k] for k in d if k not in ('carg','s','e','v')})
+          print('s', d.get('s')); print('e', {k:d['e'][k] for k in ('te','est','esnt','c')} if 'e' in d else None)
+          for c in d.get('carg',[]):
+              print('cargo', c['cd'], 'keys', [k for k in c if k!='agr'])
+              for a in c['agr']:
+                  for p in a['par']:
+                      for x in p.get('cand',[]): print('  ', x['n'], x['nmu'], x['vap'], x.get('pvap'), 'e', x.get('e'), 'st', repr(x.get('st')), x.get('dvt'), 'seq', x.get('seq'))
+          " || true
+          done
